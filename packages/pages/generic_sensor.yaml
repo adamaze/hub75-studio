@@ -6,7 +6,7 @@
 
 lvgl_page_manager:
   pages:
-    - page: generic_sensor${uid}
+    - page: generic_sensor_${uid}
       friendly_name: "sensor"
 
 # Fetch state from Home Assistant
