@@ -24,7 +24,7 @@ globals:
 
 lvgl:
   pages:
-    - id: page_sensor${uid}
+    - id: page_sensor_${uid}
       width: 100%
       height: 100%
       on_load:
