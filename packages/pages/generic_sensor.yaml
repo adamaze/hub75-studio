@@ -1,0 +1,46 @@
+#
+# Required vars:
+#   uid: Unique identifier for this instance (e.g., "test_timer")
+#   page_friendly_name: Name of the page (e.g., "Timer")
+#   entity_id: Home Assistant timer entity (e.g., timer.test)
+
+lvgl_page_manager:
+  pages:
+    - page: generic_sensor${uid}
+      friendly_name: "sensor"
+
+# Fetch state from Home Assistant
+text_sensor:
+  - platform: homeassistant
+    id: sensor_state${uid}
+    entity_id: ${entity_id}
+    internal: true
+
+globals:
+  - id: sensor_last_state${uid}
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+lvgl:
+  pages:
+    - id: page_sensor${uid}
+      width: 100%
+      height: 100%
+      on_load:
+        - lambda: |-
+            // Reset state tracking when page loads
+            id(sensor_last_state${uid}) = "";
+      layout:
+        type: FLEX
+        flex_flow: COLUMN
+        flex_align_main: CENTER
+        flex_align_cross: CENTER
+        pad_row: 6
+      widgets:
+        - label:
+            id: sensor_label${uid}
+            width: 100%
+            text_align: CENTER
+            styles: [st_spleen16]
+            text: "00:00"
