@@ -104,11 +104,11 @@ globals:
   # Scoring & flow
   - id: pong_score_left
     type: int
-    restore_value: no
+    restore_value: yes
     initial_value: "0"
   - id: pong_score_right
     type: int
-    restore_value: no
+    restore_value: yes
     initial_value: "0"
   - id: pong_scored
     type: bool
