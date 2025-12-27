@@ -1,0 +1,101 @@
+# © Copyright 2025 Stuart Parmenter
+# SPDX-License-Identifier: MIT
+#
+# Now Playing (LVGL + DDP) — minimal: show only album art (for 64x64)
+#
+# Required vars:
+#   uid: Unique identifier for this instance (e.g., "living_room")
+#   page_friendly_name: Name of the page (e.g., Now Playing - Living Room)
+#   ha_base_url: Home Assistant base URL (e.g., http://homeassistant.local:8123)
+#   media_player_entity: Media player entity ID (e.g., media_player.living_room)
+#
+# This trimmed version shows only the album art on a 64x64 display.
+
+lvgl_page_manager:
+  pages:
+    - page: page_now_playing_${uid}
+      friendly_name: "${page_friendly_name}"
+
+substitutions:
+  DEFAULT_ART_SRC: "internal:placeholder/64x64/000000.png"
+
+script:
+  # Keep just the URL normalization/resolver script so entity_picture updates can be handled
+  - id: np_set_art_src_resolved_${uid}
+    mode: restart
+    parameters:
+      path_or_url: string
+      base: string
+    then:
+      - lambda: |-
+          auto normalize_ha_image_url = [](const std::string &in, const std::string &base) -> std::string {
+            if (in.rfind("http://", 0) == 0 || in.rfind("https://", 0) == 0) return in;
+            if (in.empty()) return base;
+            const bool base_has_slash = !base.empty() && base.back() == '/';
+            const bool path_has_slash = !in.empty() && in.front() == '/';
+            if (base_has_slash && path_has_slash) return base.substr(0, base.size() - 1) + in;
+            if (!base_has_slash && !path_has_slash) return base + "/" + in;
+            return base + in;
+          };
+          std::string full = normalize_ha_image_url(path_or_url, base);
+          id(art_src_ctl_${uid}) = full;
+          id(output_art_${uid}).set_src(id(art_src_ctl_${uid}).c_str());
+
+globals:
+  - id: art_src_ctl_${uid}
+    type: std::string
+    restore_value: no
+    initial_value: '"${DEFAULT_ART_SRC}"'
+
+# DDP sink + canvas binding (artwork stream)
+ddp_canvas:
+  - id: stream_art_${uid}
+    canvas: art_canvas_${uid}
+    back_buffers: 0
+
+media_proxy_control:
+  id: mp_control
+  outputs:
+    - id: output_art_${uid}
+      stream: stream_art_${uid}
+      src: ${DEFAULT_ART_SRC}
+      loop: false
+      format: rgb565
+
+# Only keep the entity_picture sensor so we can update the artwork
+text_sensor:
+  - platform: homeassistant
+    id: ha_entity_picture_${uid}
+    entity_id: ${media_player_entity}
+    attribute: entity_picture
+    internal: true
+    on_value:
+      - script.execute:
+          id: np_set_art_src_resolved_${uid}
+          path_or_url: !lambda 'return x.c_str();'
+          base: ${ha_base_url}
+
+lvgl:
+  style_definitions:
+    - id: page_black
+      bg_color: 0x000000
+      bg_opa: 100%
+      pad_all: 0
+      border_opa: TRANSP
+
+  pages:
+    - id: page_now_playing_${uid}
+      bg_color: 0x000000
+      widgets:
+        # Single 64×64 canvas occupying the full display
+        - canvas:
+            id: art_canvas_${uid}
+            x: 0
+            y: 0
+            width: 64
+            height: 64
+
+      on_load:
+        then:
+          - lambda: |-
+              id(output_art_${uid}).start();
