@@ -212,42 +212,6 @@ media_proxy_control:
 # Pull metadata from Home Assistant
 text_sensor:
   - platform: homeassistant
-    id: ha_media_title_${uid}
-    entity_id: ${media_player_entity}
-    attribute: media_title
-    internal: true
-    on_value:
-      - script.execute:
-          id: np_set_label_text_normalized_${uid}
-          widget: !lambda 'return id(title_lbl_${uid});'
-          text: !lambda 'return x.c_str();'
-          simplify_unicode: true
-
-  - platform: homeassistant
-    id: ha_media_artist_${uid}
-    entity_id: ${media_player_entity}
-    attribute: media_artist
-    internal: true
-    on_value:
-      - script.execute:
-          id: np_set_label_text_normalized_${uid}
-          widget: !lambda 'return id(artist_lbl_${uid});'
-          text: !lambda 'return x.c_str();'
-          simplify_unicode: true
-
-  - platform: homeassistant
-    id: ha_media_album_${uid}
-    entity_id: ${media_player_entity}
-    attribute: media_album_name
-    internal: true
-    on_value:
-      - script.execute:
-          id: np_set_label_text_normalized_${uid}
-          widget: !lambda 'return id(album_lbl_${uid});'
-          text: !lambda 'return x.c_str();'
-          simplify_unicode: true
-
-  - platform: homeassistant
     id: ha_entity_picture_${uid}
     entity_id: ${media_player_entity}
     attribute: entity_picture
