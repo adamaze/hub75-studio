@@ -76,13 +76,6 @@ text_sensor:
           base: ${ha_base_url}
 
 lvgl:
-  style_definitions:
-    - id: page_black
-      bg_color: 0x000000
-      bg_opa: 100%
-      pad_all: 0
-      border_opa: TRANSP
-
   pages:
     - id: page_now_playing_${uid}
       bg_color: 0x000000
