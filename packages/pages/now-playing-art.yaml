@@ -286,57 +286,6 @@ sensor:
     internal: true
 
 lvgl:
-  style_definitions:
-    - id: page_black
-      bg_color: 0x000000
-      bg_opa: 100%
-      pad_all: 0
-      border_opa: TRANSP
-
-    - id: panel_left_box
-      bg_opa: TRANSP
-      border_opa: TRANSP
-      outline_opa: TRANSP
-      radius: 0
-      pad_left: 2
-      pad_right: 2
-      pad_top: 2
-      pad_bottom: 2
-      pad_column: 0
-      pad_row: 2
-
-    # Progress bar styles (track + indicator)
-    # Text hierarchy via opacity (monochrome)
-    - id: st_title_text
-      text_opa: 95%
-    - id: st_artist_text
-      text_opa: 80%
-    - id: st_album_text
-      text_opa: 65%
-
-    # Hairline divider (subtle)
-    - id: st_divider
-      bg_color: 0x303030
-      bg_opa: COVER
-      border_width: 0
-      pad_all: 0
-
-    - id: st_spacer_invisible
-      bg_opa: TRANSP
-      border_opa: TRANSP
-      outline_opa: TRANSP
-      shadow_opa: TRANSP
-      pad_all: 0
-
-    - id: st_bar_progress
-      pad_all: 0
-      bg_color: 0x001122
-      bg_opa: COVER
-
-    - id: st_bar_indicator
-      bg_color: 0x228B22
-      bg_opa: COVER
-
   pages:
     - id: page_now_playing_${uid}
       bg_color: 0x000000
