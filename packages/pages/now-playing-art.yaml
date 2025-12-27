@@ -1,0 +1,456 @@
+# © Copyright 2025 Stuart Parmenter
+# SPDX-License-Identifier: MIT
+
+# Now Playing (LVGL + DDP)
+# This is designed to work with two horizontal panels (128x64)
+#
+# Required vars:
+#   uid: Unique identifier for this instance (e.g., "living_room")
+#   page_friendly_name: Name of the page (e.g., Now Playing - Living Room)
+#   ha_base_url: Home Assistant base URL (e.g., http://homeassistant.local:8123)
+#   media_player_entity: Media player entity ID (e.g., media_player.living_room)
+
+lvgl_page_manager:
+  pages:
+    - page: page_now_playing_${uid}
+      friendly_name: "${page_friendly_name}"
+
+substitutions:
+  DEFAULT_ART_SRC: "internal:placeholder/64x64/000000.png"
+
+script:
+  - id: np_set_label_text_normalized_${uid}
+    mode: restart
+    parameters:
+      widget: lv_obj_t*
+      text: string
+      simplify_unicode: bool
+    then:
+      - lambda: |-
+          auto rep_all = [](std::string &s, const char *from, const char *to) {
+            const size_t flen = std::strlen(from);
+            const size_t tlen = std::strlen(to);
+            if (flen == 0) return;
+            size_t pos = 0;
+            while ((pos = s.find(from, pos)) != std::string::npos) {
+              s.replace(pos, flen, to);
+              pos += tlen;
+            }
+          };
+          auto normalize_media_text = [&](std::string s) -> std::string {
+            if (!simplify_unicode) return s;
+            if (std::all_of(s.begin(), s.end(), [](unsigned char ch){ return ch < 0x80; })) return s;
+            // --- Hyphens / Dashes ---
+            // Normalize everything to ASCII hyphen-minus (U+002D)
+            rep_all(s, "\x2D", "-");          // U+002D HYPHEN-MINUS
+            rep_all(s, "\xE2\x80\x90", "-");  // U+2010 HYPHEN
+            rep_all(s, "\xE2\x80\x91", "-");  // U+2011 NON-BREAKING HYPHEN
+            rep_all(s, "\xE2\x80\x92", "-");  // U+2012 FIGURE DASH
+            rep_all(s, "\xE2\x80\x93", "-");  // U+2013 EN DASH
+            rep_all(s, "\xE2\x80\x94", "-");  // U+2014 EM DASH
+            rep_all(s, "\xE2\x80\x95", "-");  // U+2015 HORIZONTAL BAR
+            rep_all(s, "\xE2\x88\x92", "-");  // U+2212 MINUS SIGN
+            rep_all(s, "\xEF\xBC\x8D", "-");  // U+FF0D FULLWIDTH HYPHEN-MINUS
+            rep_all(s, "\xC2\xAD", "");       // U+00AD SOFT HYPHEN (delete)
+            rep_all(s, "\xE2\x81\x83", "");   // U+2053 SWUNG DASH (delete)
+
+            // --- Quotes / Apostrophes ---
+            // Collapse curly/special quotes into ASCII ' and "
+            rep_all(s, "\xE2\x80\x98", "'");  // U+2018 LEFT SINGLE QUOTATION MARK
+            rep_all(s, "\xE2\x80\x99", "'");  // U+2019 RIGHT SINGLE QUOTATION MARK
+            rep_all(s, "\xE2\x80\x9A", "'");  // U+201A SINGLE LOW-9 QUOTATION MARK
+            rep_all(s, "\xE2\x80\xB2", "'");  // U+2032 PRIME (often used as apostrophe)
+            rep_all(s, "\xE2\x80\x9C", "\""); // U+201C LEFT DOUBLE QUOTATION MARK
+            rep_all(s, "\xE2\x80\x9D", "\""); // U+201D RIGHT DOUBLE QUOTATION MARK
+            rep_all(s, "\xE2\x80\x9E", "\""); // U+201E DOUBLE LOW-9 QUOTATION MARK
+
+            // --- Ellipsis ---
+            rep_all(s, "\xE2\x80\xA6", "..."); // U+2026 HORIZONTAL ELLIPSIS
+
+            // --- Spaces ---
+            // Normalize special spaces to ASCII space
+            rep_all(s, "\xC2\xA0", " ");      // U+00A0 NO-BREAK SPACE
+            rep_all(s, "\xE2\x80\xAF", " ");  // U+202F NARROW NO-BREAK SPACE
+            rep_all(s, "\xE2\x81\x9F", " ");  // U+205F MEDIUM MATHEMATICAL SPACE
+            rep_all(s, "\xE3\x80\x80", " ");  // U+3000 IDEOGRAPHIC SPACE
+
+            // --- Latin-1 Supplement letters (U+00C0–U+00FF) ---
+            // A
+            rep_all(s, "\xC3\x80", "A"); // U+00C0 À
+            rep_all(s, "\xC3\x81", "A"); // U+00C1 Á
+            rep_all(s, "\xC3\x82", "A"); // U+00C2 Â
+            rep_all(s, "\xC3\x83", "A"); // U+00C3 Ã
+            rep_all(s, "\xC3\x84", "A"); // U+00C4 Ä
+            rep_all(s, "\xC3\x85", "A"); // U+00C5 Å
+            rep_all(s, "\xC3\xA0", "a"); // U+00E0 à
+            rep_all(s, "\xC3\xA1", "a"); // U+00E1 á
+            rep_all(s, "\xC3\xA2", "a"); // U+00E2 â
+            rep_all(s, "\xC3\xA3", "a"); // U+00E3 ã
+            rep_all(s, "\xC3\xA4", "a"); // U+00E4 ä
+            rep_all(s, "\xC3\xA5", "a"); // U+00E5 å
+
+            // AE ligature
+            rep_all(s, "\xC3\x86", "AE"); // U+00C6 Æ
+            rep_all(s, "\xC3\xA6", "ae"); // U+00E6 æ
+
+            // C
+            rep_all(s, "\xC3\x87", "C"); // U+00C7 Ç
+            rep_all(s, "\xC3\xA7", "c"); // U+00E7 ç
+
+            // E
+            rep_all(s, "\xC3\x88", "E"); // U+00C8 È
+            rep_all(s, "\xC3\x89", "E"); // U+00C9 É
+            rep_all(s, "\xC3\x8A", "E"); // U+00CA Ê
+            rep_all(s, "\xC3\x8B", "E"); // U+00CB Ë
+            rep_all(s, "\xC3\xA8", "e"); // U+00E8 è
+            rep_all(s, "\xC3\xA9", "e"); // U+00E9 é
+            rep_all(s, "\xC3\xAA", "e"); // U+00EA ê
+            rep_all(s, "\xC3\xAB", "e"); // U+00EB ë
+
+            // I
+            rep_all(s, "\xC3\x8C", "I"); // U+00CC Ì
+            rep_all(s, "\xC3\x8D", "I"); // U+00CD Í
+            rep_all(s, "\xC3\x8E", "I"); // U+00CE Î
+            rep_all(s, "\xC3\x8F", "I"); // U+00CF Ï
+            rep_all(s, "\xC3\xAC", "i"); // U+00EC ì
+            rep_all(s, "\xC3\xAD", "i"); // U+00ED í
+            rep_all(s, "\xC3\xAE", "i"); // U+00EE î
+            rep_all(s, "\xC3\xAF", "i"); // U+00EF ï
+
+            // N
+            rep_all(s, "\xC3\x91", "N"); // U+00D1 Ñ
+            rep_all(s, "\xC3\xB1", "n"); // U+00F1 ñ
+
+            // O
+            rep_all(s, "\xC3\x92", "O"); // U+00D2 Ò
+            rep_all(s, "\xC3\x93", "O"); // U+00D3 Ó
+            rep_all(s, "\xC3\x94", "O"); // U+00D4 Ô
+            rep_all(s, "\xC3\x95", "O"); // U+00D5 Õ
+            rep_all(s, "\xC3\x96", "O"); // U+00D6 Ö
+            rep_all(s, "\xC3\x98", "O"); // U+00D8 Ø
+            rep_all(s, "\xC3\xB2", "o"); // U+00F2 ò
+            rep_all(s, "\xC3\xB3", "o"); // U+00F3 ó
+            rep_all(s, "\xC3\xB4", "o"); // U+00F4 ô
+            rep_all(s, "\xC3\xB5", "o"); // U+00F5 õ
+            rep_all(s, "\xC3\xB6", "o"); // U+00F6 ö
+            rep_all(s, "\xC3\xB8", "o"); // U+00F8 ø
+
+            // U
+            rep_all(s, "\xC3\x99", "U"); // U+00D9 Ù
+            rep_all(s, "\xC3\x9A", "U"); // U+00DA Ú
+            rep_all(s, "\xC3\x9B", "U"); // U+00DB Û
+            rep_all(s, "\xC3\x9C", "U"); // U+00DC Ü
+            rep_all(s, "\xC3\xB9", "u"); // U+00F9 ù
+            rep_all(s, "\xC3\xBA", "u"); // U+00FA ú
+            rep_all(s, "\xC3\xBB", "u"); // U+00FB û
+            rep_all(s, "\xC3\xBC", "u"); // U+00FC ü
+
+            // Y
+            rep_all(s, "\xC3\x9D", "Y"); // U+00DD Ý
+            rep_all(s, "\xC3\xBD", "y"); // U+00FD ý
+            rep_all(s, "\xC3\xBF", "y"); // U+00FF ÿ
+
+            // ß
+            rep_all(s, "\xC3\x9F", "ss"); // U+00DF ß
+
+            // --- Ligatures (Latin Extended but common) ---
+            rep_all(s, "\xC5\x92", "OE"); // U+0152 Œ
+            rep_all(s, "\xC5\x93", "oe"); // U+0153 œ
+
+            return s;
+          };
+          std::string out = normalize_media_text(text);
+          lv_label_set_text((lv_obj_t*)widget, out.c_str());
+
+  - id: np_set_art_src_resolved_${uid}
+    mode: restart
+    parameters:
+      path_or_url: string
+      base: string
+    then:
+      - lambda: |-
+          auto normalize_ha_image_url = [](const std::string &in, const std::string &base) -> std::string {
+            if (in.rfind("http://", 0) == 0 || in.rfind("https://", 0) == 0) return in;
+            if (in.empty()) return base;
+            const bool base_has_slash = !base.empty() && base.back() == '/';
+            const bool path_has_slash = !in.empty() && in.front() == '/';
+            if (base_has_slash && path_has_slash) return base.substr(0, base.size() - 1) + in;
+            if (!base_has_slash && !path_has_slash) return base + "/" + in;
+            return base + in;
+          };
+          std::string full = normalize_ha_image_url(path_or_url, base);
+          id(art_src_ctl_${uid}) = full;
+          id(output_art_${uid}).set_src(id(art_src_ctl_${uid}).c_str());
+
+globals:
+  - id: art_src_ctl_${uid}
+    type: std::string
+    restore_value: no
+    initial_value: '"${DEFAULT_ART_SRC}"'
+  
+  - id: media_progress_pct_${uid}
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+# DDP sink + canvas binding
+ddp_canvas:
+  - id: stream_art_${uid}
+    canvas: art_canvas_${uid}
+    back_buffers: 0
+
+# WebSocket control for artwork streaming
+media_proxy_control:
+  id: mp_control
+  outputs:
+    - id: output_art_${uid}
+      stream: stream_art_${uid}
+      src: ${DEFAULT_ART_SRC}
+      loop: false
+      format: rgb565
+
+# Pull metadata from Home Assistant
+text_sensor:
+  - platform: homeassistant
+    id: ha_media_title_${uid}
+    entity_id: ${media_player_entity}
+    attribute: media_title
+    internal: true
+    on_value:
+      - script.execute:
+          id: np_set_label_text_normalized_${uid}
+          widget: !lambda 'return id(title_lbl_${uid});'
+          text: !lambda 'return x.c_str();'
+          simplify_unicode: true
+
+  - platform: homeassistant
+    id: ha_media_artist_${uid}
+    entity_id: ${media_player_entity}
+    attribute: media_artist
+    internal: true
+    on_value:
+      - script.execute:
+          id: np_set_label_text_normalized_${uid}
+          widget: !lambda 'return id(artist_lbl_${uid});'
+          text: !lambda 'return x.c_str();'
+          simplify_unicode: true
+
+  - platform: homeassistant
+    id: ha_media_album_${uid}
+    entity_id: ${media_player_entity}
+    attribute: media_album_name
+    internal: true
+    on_value:
+      - script.execute:
+          id: np_set_label_text_normalized_${uid}
+          widget: !lambda 'return id(album_lbl_${uid});'
+          text: !lambda 'return x.c_str();'
+          simplify_unicode: true
+
+  - platform: homeassistant
+    id: ha_entity_picture_${uid}
+    entity_id: ${media_player_entity}
+    attribute: entity_picture
+    internal: true
+    on_value:
+      - script.execute:
+          id: np_set_art_src_resolved_${uid}
+          path_or_url: !lambda 'return x.c_str();'
+          base: ${ha_base_url}
+
+  - platform: homeassistant
+    id: ha_media_state_${uid}
+    entity_id: ${media_player_entity}
+
+  - platform: homeassistant
+    id: ha_media_pos_updated_at_${uid}
+    entity_id: ${media_player_entity}
+    attribute: media_position_updated_at
+
+  - platform: homeassistant
+    id: ha_media_content_id_${uid}
+    entity_id: ${media_player_entity}
+    attribute: media_content_id
+
+sensor:
+  - platform: homeassistant
+    id: ha_media_position_${uid}
+    entity_id: ${media_player_entity}
+    attribute: media_position
+    internal: true
+
+  - platform: homeassistant
+    id: ha_media_duration_${uid}
+    entity_id: ${media_player_entity}
+    attribute: media_duration
+    internal: true
+
+interval:
+  # This runs always regardless of if the page is active.  This is intentional to keep the progress bar always correct.
+  # Could be worth revisiting if it adds too much overhead (but it should be pretty low)
+  - interval: 1s
+    then:
+      - lambda: |-
+          const float dur = id(ha_media_duration_${uid}).state;        // seconds
+          const float pos_raw = id(ha_media_position_${uid}).state;     // anchor only
+          const auto  st  = id(ha_media_state_${uid}).state;            // "playing"/"paused"/...
+          const auto  upd = id(ha_media_pos_updated_at_${uid}).state;   // change marker
+          const auto  cid = id(ha_media_content_id_${uid}).state;       // track id
+          const uint32_t now_ms = millis();
+
+          // Sticky anchors
+          static float base_pos = 0.0f;
+          static uint32_t base_ms = 0;
+          static std::string last_state;
+          static std::string last_upd;
+          static std::string last_cid;
+          static bool first_run = true;
+
+          // Re-anchor on: seek/track change, state transition, or first run.
+          bool reanchor = false;
+          bool track_changed = false;
+          
+          if (upd != last_upd) { last_upd = upd; reanchor = true; }
+          if (cid != last_cid) { 
+            last_cid = cid; 
+            reanchor = true;
+            track_changed = true;
+            // Reset progress to 0 on track change
+            if (!first_run) {
+              id(media_progress_pct_${uid}) = 0;
+              lv_bar_set_value(id(progress_bar_${uid}), 0, LV_ANIM_OFF);
+              ESP_LOGD("now_playing", "Track changed, resetting progress");
+            }
+          }
+          if (st != last_state) { last_state = st; reanchor = true; }
+
+          if (reanchor || first_run) {
+            // On track change, always start from 0 regardless of what HA reports
+            // because HA often reports stale position data from previous track
+            if (track_changed && !first_run) {
+              base_pos = 0.0f;
+              ESP_LOGD("now_playing", "Track change detected, forcing position to 0 (HA reported %.1f)", pos_raw);
+            } else {
+              base_pos = std::isnan(pos_raw) ? 0.0f : pos_raw;  // anchor to HA's offset (often 0 on Sonos/Spotify)
+            }
+            base_ms = now_ms;
+            first_run = false;
+          }
+
+          // Only compute progress when track is playing/paused AND duration is valid
+          const bool is_playing = st == "playing";
+          const bool is_paused  = st == "paused";
+          const bool has_track  = is_playing || is_paused;
+          if (!has_track || dur <= 0.0f || std::isnan(dur)) {
+            // Reset visuals but don't log; idle/standby devices often report 0/NaN duration.
+            id(media_progress_pct_${uid}) = 0;
+            lv_bar_set_value(id(progress_bar_${uid}), 0, LV_ANIM_OFF);
+            return;
+          }
+
+          // Compute live position: advance only while playing
+          float pos_live = base_pos;
+          if (st == "playing") {
+            pos_live = base_pos + (now_ms - base_ms) / 1000.0f;
+          }
+
+          // Clamp position
+          if (pos_live < 0.0f) pos_live = 0.0f;
+          if (pos_live > dur) pos_live = dur;
+
+          // Calculate percentage
+          int pct = (int)((pos_live / dur) * 100.0f + 0.5f);
+          if (pct < 0) pct = 0;
+          if (pct > 100) pct = 100;
+
+          // Only update if percentage actually changed to reduce unnecessary updates
+          if (id(media_progress_pct_${uid}) != pct) {
+            id(media_progress_pct_${uid}) = pct;
+            lv_bar_set_value(id(progress_bar_${uid}), pct, LV_ANIM_OFF);
+            ESP_LOGD("now_playing", "dur=%.1f state=%s raw=%.1f anchor=%.1f live=%.1f -> %d%%",
+                     dur, st.c_str(), pos_raw, base_pos, pos_live, pct);
+          }
+
+lvgl:
+  style_definitions:
+    - id: page_black
+      bg_color: 0x000000
+      bg_opa: 100%
+      pad_all: 0
+      border_opa: TRANSP
+
+    - id: panel_left_box
+      bg_opa: TRANSP
+      border_opa: TRANSP
+      outline_opa: TRANSP
+      radius: 0
+      pad_left: 2
+      pad_right: 2
+      pad_top: 2
+      pad_bottom: 2
+      pad_column: 0
+      pad_row: 2
+
+    # Progress bar styles (track + indicator)
+    # Text hierarchy via opacity (monochrome)
+    - id: st_title_text
+      text_opa: 95%
+    - id: st_artist_text
+      text_opa: 80%
+    - id: st_album_text
+      text_opa: 65%
+
+    # Hairline divider (subtle)
+    - id: st_divider
+      bg_color: 0x303030
+      bg_opa: COVER
+      border_width: 0
+      pad_all: 0
+
+    - id: st_spacer_invisible
+      bg_opa: TRANSP
+      border_opa: TRANSP
+      outline_opa: TRANSP
+      shadow_opa: TRANSP
+      pad_all: 0
+
+    - id: st_bar_progress
+      pad_all: 0
+      bg_color: 0x001122
+      bg_opa: COVER
+
+    - id: st_bar_indicator
+      bg_color: 0x228B22
+      bg_opa: COVER
+
+  pages:
+    - id: page_now_playing_${uid}
+      bg_color: 0x000000
+      widgets:
+        # On 64x64, this is full screen.  On wider displays it is put as the right panel
+        - canvas:
+            id: art_canvas_${uid}
+            x: ${DISPLAY_W == 64 and '0' or '64'}
+            y: 0
+            width: 64
+            height: 64
+
+        # LEFT: 64×64 text column
+        - obj:
+            id: left_panel_${uid}
+            x: 0
+            y: 0
+            width: 64
+            height: 64
+            hidden: ${DISPLAY_W == 64}
+            layout:
+              type: flex
+              flex_flow: COLUMN
+              pad_row: 2
+              pad_column: 0
+            styles: [panel_left_box]
+
+      on_load:
+        then:
+          - lambda: |-
+              id(output_art_${uid}).start();
