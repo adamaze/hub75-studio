@@ -230,8 +230,8 @@ script:
                   if (isnan(id(forecast_high)) || isnan(id(forecast_low))) return "";
                   static char buf[10];
                   snprintf(buf, sizeof(buf), "%d/%d",
-                           (int) id(forecast_low),
-                           (int) id(forecast_high));
+                           (int) id(forecast_high),
+                           (int) id(forecast_low));
                   return buf;
 
 # -------- Time (updates every minute) --------
