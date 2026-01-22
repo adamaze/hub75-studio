@@ -2,21 +2,19 @@
 # SPDX-License-Identifier: MIT
 
 esp32:
-  board: esp32-s3-devkitc-1
-  flash_size: 16MB
+  board: esp32dev
+  flash_size: 4MB
   cpu_frequency: 240MHz
   framework:
     type: esp-idf
     advanced:
       compiler_optimization: PERF
       enable_idf_experimental_features: true
-    sdkconfig_options:
-      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: y
 
 display:
   - platform: hub75
     id: matrix
-    board: apollo-automation-m1-rev4
+    board: esp32-trinity
 
     panel_width: ${panel_width}
     panel_height: ${panel_height}
@@ -35,24 +33,6 @@ display:
     double_buffer: false
     auto_clear_enabled: false
     update_interval: never
-
-# Boot button (GPIO0) as power toggle
-binary_sensor:
-  - platform: gpio
-    id: power_button
-    internal: true
-    pin:
-      number: GPIO0
-      mode:
-        input: true
-        pullup: true
-      inverted: true
-    filters:
-      - delayed_on: 10ms
-      - delayed_off: 10ms
-    on_click:
-      then:
-        - switch.toggle: power
 
 lvgl:
   buffer_size: 100%
